@@ -113,7 +113,7 @@ def closest_number(big_num, small_num):
 
 class Candidate(SigprocFile):
     def __init__(self, fp=None, copy_hdr=None, dm=None, tcand=0, width=0, label=-1, snr=0, min_samp=256, device=0,
-                 kill_mask=None):
+                 time_decimation_factor=None, kill_mask=None):
         """
 
         :param fp: Filepath of the filterbank
@@ -125,6 +125,7 @@ class Candidate(SigprocFile):
         :param snr: SNR of the candidate
         :param min_samp: Minimum number of time samples to read
         :param device: If using GPUs, device is the GPU id
+        :param time_decimation_factor: Decimate the time axis with this factor
         :param kill_mask: Boolean mask of channels to kill
         """
         SigprocFile.__init__(self, fp, copy_hdr)
@@ -142,6 +143,8 @@ class Candidate(SigprocFile):
         self.dm_opt = -1
         self.snr_opt = -1
         self.kill_mask = kill_mask
+        if time_decimation_factor is None:
+            self.time_decimation_factor = cand.width // 2 if cand.width >= 2 else 1
 
     def save_h5(self, out_dir=None, fnout=None):
         """
@@ -205,12 +208,8 @@ class Candidate(SigprocFile):
         """
         if tstart is None:
             tstart = self.tcand - self.dispersion_delay() - self.width * self.tsamp
-            if tstart < 0:
-                tstart = 0
         if tstop is None:
             tstop = self.tcand + self.dispersion_delay() + self.width * self.tsamp
-            if tstop > self.tend:
-                tstop = self.tend
         nstart = int(tstart / self.tsamp)
         nsamp = int((tstop - tstart) / self.tsamp)
         if self.width < 2:
@@ -221,6 +220,8 @@ class Candidate(SigprocFile):
             # if number of time samples less than nchunk, make it min_samp.
             nstart -= (nchunk - nsamp) // 2
             nsamp = nchunk
+
+        nsamp += nsamp % self.time_decimation_factor
         if nstart < 0:
             self.data = self.get_data(nstart=0, nsamp=nsamp + nstart)[:, 0, :]
             logging.debug('median padding data as nstart < 0')
@@ -259,7 +260,7 @@ class Candidate(SigprocFile):
                     self.dedispersed[:, ii] = np.concatenate(
                         [self.data[-delay_bins[ii]:, ii], self.data[:-delay_bins[ii], ii]])
             elif target == 'GPU':
-                from gpu_utils import gpu_dedisperse
+                from pysigproc.gpu_utils import gpu_dedisperse
                 gpu_dedisperse(self, device=self.device)
         else:
             self.dedispersed = None
@@ -296,7 +297,7 @@ class Candidate(SigprocFile):
             for ii, dm in enumerate(dm_list):
                 self.dmt[ii, :] = self.dedispersets(dms=dm)
         elif target == 'GPU':
-            from gpu_utils import gpu_dmt
+            from pysigproc.gpu_utils import gpu_dmt
             gpu_dmt(self, device=self.device)
         return self
 

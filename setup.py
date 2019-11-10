@@ -6,12 +6,13 @@ except ImportError:
     from distutils.core import setup, find_packages
 
 setup(name='pysigproc',
-      version='0.55',
+      version='0.6.0',
       description='Python reader/writer for sigproc filterbank files (works with python3 as well)',
       author='Paul Demorest, Devansh Agarwal, Kshitij Aggarwal',
       author_email='pdemores@nrao.edu, da0017@mix.wvu.edu, ka0064@mix.wvu.edu',
       url='http://github.com/devanshkv/pysigproc',
       install_requires=['numpy', 'h5py', 'scikit-image', 'scipy', 'numba', 'matplotlib'],
+      tests_require=['pytest'],
       packages=find_packages(),
       py_modules={'pysigproc', 'candidate', 'gpu_utils'},
       scripts=['bin/h5plotter.py'],

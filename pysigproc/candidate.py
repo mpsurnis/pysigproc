@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-import logging
-
 import h5py
+import logging
 import numpy as np
 from scipy.optimize import golden
 from skimage.transform import resize
@@ -144,7 +143,7 @@ class Candidate(SigprocFile):
         self.snr_opt = -1
         self.kill_mask = kill_mask
         if time_decimation_factor is None:
-            self.time_decimation_factor = cand.width // 2 if cand.width >= 2 else 1
+            self.time_decimation_factor = self.width // 2 if self.width >= 2 else 1
 
     def save_h5(self, out_dir=None, fnout=None):
         """

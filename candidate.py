@@ -113,7 +113,7 @@ def closest_number(big_num, small_num):
 
 class Candidate(SigprocFile):
     def __init__(self, fp=None, copy_hdr=None, dm=None, tcand=0, width=0, label=-1, snr=0, min_samp=256, device=0,
-                 kill_mask=None):
+                 kill_mask=None, kill_mask_fill_mode='constant'):
         """
 
         :param fp: Filepath of the filterbank
@@ -126,6 +126,7 @@ class Candidate(SigprocFile):
         :param min_samp: Minimum number of time samples to read
         :param device: If using GPUs, device is the GPU id
         :param kill_mask: Boolean mask of channels to kill
+        :param kill_mask_fill_mode: Fill the killed channel values with 'constant', 'mean', 'median', 'masked_array'
         """
         SigprocFile.__init__(self, fp, copy_hdr)
         self.dm = dm
@@ -142,6 +143,7 @@ class Candidate(SigprocFile):
         self.dm_opt = -1
         self.snr_opt = -1
         self.kill_mask = kill_mask
+        self.kill_mask_fill_mode = kill_mask_fill_mode
 
     def save_h5(self, out_dir=None, fnout=None):
         """
@@ -205,14 +207,15 @@ class Candidate(SigprocFile):
         """
         if tstart is None:
             tstart = self.tcand - self.dispersion_delay() - self.width * self.tsamp
-            #if tstart < 0:
-            #    tstart = 0
         if tstop is None:
             tstop = self.tcand + self.dispersion_delay() + self.width * self.tsamp
-            #if tstop > self.tend:
-            #    tstop = self.tend
+
+        pre_pad = 0
+        post_pad = 0
+
         nstart = int(tstart / self.tsamp)
         nsamp = int((tstop - tstart) / self.tsamp)
+
         if self.width < 2:
             nchunk = self.min_samp
         else:
@@ -221,23 +224,54 @@ class Candidate(SigprocFile):
             # if number of time samples less than nchunk, make it min_samp.
             nstart -= (nchunk - nsamp) // 2
             nsamp = nchunk
+
+        chunk_start = nstart
+        chunk_length = nsamp
+
         if nstart < 0:
-            self.data = self.get_data(nstart=0, nsamp=nsamp + nstart)[:, 0, :]
+            pre_pad = -nstart
+            chunk_start = 0
+            chunk_length = nsamp - predpad
+
+        if nstart + nsamp > self.nspectra:
+            post_pad = self.nspectra - (nstart + nsamp)
+            chunk_length = nsamp - post_pad
+
+        self.data = self.get_data(nstart=chunk_start, nsamp=chunk_length)[:, 0, :]
+
+
+        if pre_pad > 0:
             logging.debug('median padding data as nstart < 0')
             self.data = pad_along_axis(self.data, nsamp, loc='start', axis=0, mode='median')
-        elif nstart + nsamp > self.nspectra:
-            self.data = self.get_data(nstart=nstart, nsamp=self.nspectra - nstart)[:, 0, :]
-            logging.debug('median padding data as nstop > nspectra')
+
+        if post_pad > 0:
+            logging.debug('median padding data as nstart + nsamp > nspectra')
             self.data = pad_along_axis(self.data, nsamp, loc='end', axis=0, mode='median')
-        else:
-            self.data = self.get_data(nstart=nstart, nsamp=nsamp)[:, 0, :]
 
         if self.kill_mask is not None:
+            if self.kill_mask_fill_mode not in [ 'constant', 'mean', 'median', 'masked_array']:
+                raise ValueError(f"kill_mask_fill_mode should be from ['constant', 'mean', 'median', 'masked_array']")
+
             assert len(self.kill_mask) == self.data.shape[1]
             data_copy = self.data.copy()
-            data_copy[:, self.kill_mask] = 0
-            self.data = data_copy
+            mask_2d = np.zeros_like(data_copy, dytpe=np.bool)
+            mask_2d[:,self.kill_mask] = True
+            masked_array = np.ma.array(data_copy, mask = mask_2d)
+            if self.kill_mask_fill_mode == 'constant':
+                fill_val = 0
+            elif self.kill_mask_fill_mode == 'mean':
+                fill_val = np.ma.mean(masked_array)
+            elif self.kill_mask_fill_mode == 'median':
+                fill_val = np.ma.median(masked_array)
+            else:
+                fill_val = None
+            if fil_val is not None:
+                self.data = masked_array.filled(fill_value=fill_val)
+            else:
+                self.data = masked_array
+
             del data_copy
+            del masked_array
         return self
 
     def dedisperse(self, dms=None, target='CPU'):

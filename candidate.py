@@ -221,14 +221,41 @@ class Candidate(SigprocFile):
             # if number of time samples less than nchunk, make it min_samp.
             nstart -= (nchunk - nsamp) // 2
             nsamp = nchunk
+        logging.debug(f'tstart, tstop and tsamp are: {tstart},{tstop},{self.tsamp}')
+        logging.debug(f'nsamp is: {nsamp}, nstart is: {nstart} and width is: {self.width}')
         if nstart < 0:
             self.data = self.get_data(nstart=0, nsamp=nsamp + nstart)[:, 0, :]
-            logging.debug('median padding data as nstart < 0')
-            self.data = pad_along_axis(self.data, nsamp, loc='start', axis=0, mode='median')
+            # Check if we got enough samples from the file
+            samp_req = nsamp + nstart
+            logging.debug(f'Requested {samp_req} samps and got {self.data.shape[0]} samps')
+            while self.data.shape[0] < samp_req:
+               padend = samp_req - self.data.shape[0]
+               logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
+               temp_array = self.get_data(nstart=0, nsamp=padend)[:, 0, :]
+               self.data = np.append(self.data,temp_array,axis=0)
+               logging.debug(f'Array now has {self.data.shape[0]} samples')
+               del temp_array 
+            logging.debug('padding data as nstart < 0')
+            #self.data = pad_along_axis(self.data, nsamp, loc='start', axis=0, mode='median')
+            while self.data.shape[0] < nsamp:
+                  padbeg = nsamp - self.data.shape[0]
+                  logging.debug(f'Grabbing {padbeg} samples to append at the start')
+                  temp_array = self.get_data(nstart=0, nsamp=padbeg)[:, 0, :]
+                  logging.debug(f'Grabbed chunk has {temp_array.shape[0]} samples')
+                  self.data = np.append(temp_array,self.data,axis=0)
+                  logging.debug(f'Data array ahape is: {self.data.shape}')
+                  del temp_array
         elif nstart + nsamp > self.nspectra:
             self.data = self.get_data(nstart=nstart, nsamp=self.nspectra - nstart)[:, 0, :]
-            logging.debug('median padding data as nstop > nspectra')
-            self.data = pad_along_axis(self.data, nsamp, loc='end', axis=0, mode='median')
+            logging.debug('padding data as nstop > nspectra')
+            while self.data.shape[0] < nsamp:
+                  padend = nsamp - self.data.shape[0]
+                  logging.debug(f'Grabbing {padend} samples to append at the end')
+                  temp_array = self.get_data(nstart=0, nsamp=padbeg)[:, 0, :]
+                  self.data = np.append(self.data,temp_array,axis=0)
+                  logging.debug(f'Data array shape is: {self.data.shape}')
+                  del temp_array
+            #self.data = pad_along_axis(self.data, nsamp, loc='end', axis=0, mode='median')
         else:
             self.data = self.get_data(nstart=nstart, nsamp=nsamp)[:, 0, :]
 

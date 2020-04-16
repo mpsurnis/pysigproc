@@ -251,7 +251,7 @@ class Candidate(SigprocFile):
             while self.data.shape[0] < nsamp:
                   padend = nsamp - self.data.shape[0]
                   logging.debug(f'Grabbing {padend} samples to append at the end')
-                  temp_array = self.get_data(nstart=0, nsamp=padbeg)[:, 0, :]
+                  temp_array = self.get_data(nstart=0, nsamp=padend)[:, 0, :]
                   self.data = np.append(self.data,temp_array,axis=0)
                   logging.debug(f'Data array shape is: {self.data.shape}')
                   del temp_array

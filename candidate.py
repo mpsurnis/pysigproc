@@ -276,8 +276,8 @@ class Candidate(SigprocFile):
             data_copy[:, self.kill_mask] = 0
             self.data = data_copy
             del data_copy
-        logging.info('Doing bandpass normalization')
-        self.data = bp_norm(self.data)
+#        logging.info('Doing bandpass normalization')
+#        self.data = bp_norm(self.data)
         return self
 
     def dedisperse(self, dms=None, target='CPU'):

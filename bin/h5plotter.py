@@ -68,12 +68,12 @@ def plot_h5(h5_file, show=False, save=True, detrend=True):
             ax4.axis('off')
             plt.tight_layout()
             if save:
-                plt.savefig(h5_file[:-3] + '.png', bbox_inches='tight')
+                plt.savefig(h5_file.rsplit( ".", 1 )[ 0 ] + '.png', bbox_inches='tight')
             if show:
                 plt.show()
             else:
                 plt.close()
-            return h5_file[:-3] + '.png'
+            return h5_file.rsplit( ".", 1 )[ 0 ] + '.png'
     except ValueError:
         return None
 

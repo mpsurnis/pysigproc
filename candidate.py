@@ -218,12 +218,8 @@ class Candidate(SigprocFile):
         """
         if tstart is None:
             tstart = self.tcand - self.dispersion_delay() - self.width * self.tsamp
-            #if tstart < 0:
-            #    tstart = 0
         if tstop is None:
             tstop = self.tcand + self.dispersion_delay() + self.width * self.tsamp
-            #if tstop > self.tend:
-            #    tstop = self.tend
         nstart = int(tstart / self.tsamp)
         nsamp = int((tstop - tstart) / self.tsamp)
         if self.width < 2:
@@ -238,52 +234,53 @@ class Candidate(SigprocFile):
         logging.debug(f'nsamp is: {nsamp}, nstart is: {nstart} and width is: {self.width}')
         if nstart < 0:
             self.data = self.get_data(nstart=0, nsamp=nsamp + nstart)[:, 0, :]
+            # Now do RFI zapping and normalization using mtcutils
+            logging.info('Doing RFI excision and normalization')
+            scaled, mean, std = mtcore.normalise(self.data.T)
+            mask = iqrm_mask(std, maxlag=3)
+            scaled[mask] = 0
+            self.data = scaled.T
+            mn = np.mean(self.data)
+            sd = np.std(self.data)
+            logging.debug(f'Data mean is {mn} and std dev is {sd}')
+            del scaled, mean, std
             # Check if we got enough samples from the file
             samp_req = nsamp + nstart
             logging.debug(f'Requested {samp_req} samps and got {self.data.shape[0]} samps')
-            while self.data.shape[0] < samp_req:
-               padend = samp_req - self.data.shape[0]
-               logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
-               temp_array = self.get_data(nstart=0, nsamp=padend)[:, 0, :]
-               self.data = np.append(self.data,temp_array,axis=0)
-               logging.debug(f'Array now has {self.data.shape[0]} samples')
-               del temp_array 
+            padend = int(samp_req - self.data.shape[0])
+            logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
+            temp_array = np.random.random((padend,self.nchans))
+            scaled, mean, std = mtcore.normalise(temp_array.T)
+            temp_array = scaled.T
+            del scaled, mean, std
+            self.data = np.append(self.data,temp_array,axis=0)
+            logging.debug(f'Array now has {self.data.shape[0]} samples')
+            del temp_array 
             logging.debug('padding data as nstart < 0')
-            #self.data = pad_along_axis(self.data, nsamp, loc='start', axis=0, mode='median')
-            while self.data.shape[0] < nsamp:
-                  padbeg = nsamp - self.data.shape[0]
-                  logging.debug(f'Grabbing {padbeg} samples to append at the start')
-                  temp_array = self.get_data(nstart=0, nsamp=padbeg)[:, 0, :]
-                  logging.debug(f'Grabbed chunk has {temp_array.shape[0]} samples')
-                  self.data = np.append(temp_array,self.data,axis=0)
-                  logging.debug(f'Data array ahape is: {self.data.shape}')
-                  del temp_array
+            padbeg = int(nsamp - self.data.shape[0])
+            logging.debug(f'Generating {padbeg} samples to append at the start')
+            temp_array = np.random.random((padbeg,self.nchans))
+            scaled, mean, std = mtcore.normalise(temp_array.T)
+            temp_array = scaled.T
+            del scaled, mean, std
+            self.data = np.append(temp_array,self.data,axis=0)
+            logging.debug(f'Data array ahape is: {self.data.shape}')
+            del temp_array
         elif nstart + nsamp > self.nspectra:
             self.data = self.get_data(nstart=nstart, nsamp=self.nspectra - nstart)[:, 0, :]
             logging.debug('padding data as nstop > nspectra')
-            while self.data.shape[0] < nsamp:
-                  padend = nsamp - self.data.shape[0]
-                  logging.debug(f'Grabbing {padend} samples to append at the end')
-                  temp_array = self.get_data(nstart=0, nsamp=padend)[:, 0, :]
-                  self.data = np.append(self.data,temp_array,axis=0)
-                  logging.debug(f'Data array shape is: {self.data.shape}')
-                  del temp_array
-            #self.data = pad_along_axis(self.data, nsamp, loc='end', axis=0, mode='median')
+            padend = int(nsamp - self.data.shape[0])
+            logging.debug(f'Generating {padend} samples to append at the end')
+            temp_array = np.random.random((padend,self.nchans))
+            scaled, mean, std = mtcore.normalise(temp_array.T)
+            temp_array = scaled.T
+            del scaled, mean, std
+            self.data = np.append(self.data,temp_array,axis=0)
+            logging.debug(f'Data array shape is: {self.data.shape}')
+            del temp_array
         else:
             self.data = self.get_data(nstart=nstart, nsamp=nsamp)[:, 0, :]
 
-#        if self.kill_mask is not None:
-#            assert len(self.kill_mask) == self.data.shape[1]
-#            data_copy = self.data.copy()
-#            data_copy[:, self.kill_mask] = 0
-#            self.data = data_copy
-#            del data_copy
-        logging.info('Doing RFI excision and normalization')
-        scaled, mean, std = mtcore.normalise(self.data.T)
-        mask = iqrm_mask(std, maxlag=3)
-        scaled[mask] = 0
-        self.data = scaled.T
-        logging.debug(f'Data array shape is: {self.data.shape}')
         return self
 
     def dedisperse(self, dms=None, target='CPU'):

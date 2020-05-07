@@ -5,8 +5,10 @@ import h5py
 import numpy as np
 from scipy.optimize import golden
 from skimage.transform import resize
-
 from pysigproc import SigprocFile
+
+from mtcutils import core as mtcore
+from mtcutils import iqrm_mask
 
 logger = logging.getLogger(__name__)
 
@@ -270,14 +272,18 @@ class Candidate(SigprocFile):
         else:
             self.data = self.get_data(nstart=nstart, nsamp=nsamp)[:, 0, :]
 
-        if self.kill_mask is not None:
-            assert len(self.kill_mask) == self.data.shape[1]
-            data_copy = self.data.copy()
-            data_copy[:, self.kill_mask] = 0
-            self.data = data_copy
-            del data_copy
-#        logging.info('Doing bandpass normalization')
-#        self.data = bp_norm(self.data)
+#        if self.kill_mask is not None:
+#            assert len(self.kill_mask) == self.data.shape[1]
+#            data_copy = self.data.copy()
+#            data_copy[:, self.kill_mask] = 0
+#            self.data = data_copy
+#            del data_copy
+        logging.info('Doing RFI excision and normalization')
+        scaled, mean, std = mtcore.normalise(self.data.T)
+        mask = iqrm_mask(std, maxlag=3)
+        scaled[mask] = 0
+        self.data = scaled.T
+        logging.debug(f'Data array shape is: {self.data.shape}')
         return self
 
     def dedisperse(self, dms=None, target='CPU'):

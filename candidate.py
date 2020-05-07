@@ -10,6 +10,17 @@ from pysigproc import SigprocFile
 
 logger = logging.getLogger(__name__)
 
+def norm_bp(data):
+    """
+    Normalise data using bandpass as in mtcutils
+    :param data: data
+    """
+    data = np.array(data, dtype=np.float32)
+    bpmean = data.mean(axis=1, dtype=float).astype(np.float32)
+    bpstd = data.std(axis=1, dtype=float).astype(np.float32)
+    bpstd[bpstd == 0] = 1.0
+    data = (data - bpmean.reshape(-1, 1)) / bpstd.reshape(-1, 1)
+    return data
 
 def _decimate(data, decimate_factor, axis, pad=False, **kwargs):
     """
@@ -265,6 +276,8 @@ class Candidate(SigprocFile):
             data_copy[:, self.kill_mask] = 0
             self.data = data_copy
             del data_copy
+        logging.info('Doing bandpass normalization')
+        self.data = bp_norm(self.data)
         return self
 
     def dedisperse(self, dms=None, target='CPU'):

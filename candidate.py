@@ -280,6 +280,11 @@ class Candidate(SigprocFile):
             del temp_array
         else:
             self.data = self.get_data(nstart=nstart, nsamp=nsamp)[:, 0, :]
+            scaled, mean, std = mtcore.normalise(self.data.T)
+            mask = iqrm_mask(std, maxlag=3)
+            scaled[mask] = 0
+            self.data = scaled.T
+            del scaled, mean, std
 
         return self
 

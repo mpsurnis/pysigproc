@@ -249,7 +249,7 @@ class Candidate(SigprocFile):
             logging.debug(f'Requested {samp_req} samps and got {self.data.shape[0]} samps')
             padend = int(samp_req - self.data.shape[0])
             logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
-            temp_array = np.random.random((padend,self.nchans))
+            temp_array = np.random.random((padend,self.nchans)).astype(np.float32)
             scaled, mean, std = mtcore.normalise(temp_array.T)
             temp_array = scaled.T
             del scaled, mean, std
@@ -259,7 +259,7 @@ class Candidate(SigprocFile):
             logging.debug('padding data as nstart < 0')
             padbeg = int(nsamp - self.data.shape[0])
             logging.debug(f'Generating {padbeg} samples to append at the start')
-            temp_array = np.random.random((padbeg,self.nchans))
+            temp_array = np.random.random((padbeg,self.nchans)).astype(np.float32)
             scaled, mean, std = mtcore.normalise(temp_array.T)
             temp_array = scaled.T
             del scaled, mean, std
@@ -268,10 +268,19 @@ class Candidate(SigprocFile):
             del temp_array
         elif nstart + nsamp > self.nspectra:
             self.data = self.get_data(nstart=nstart, nsamp=self.nspectra - nstart)[:, 0, :]
+            logging.info('Doing RFI excision and normalization')
+            scaled, mean, std = mtcore.normalise(self.data.T)
+            mask = iqrm_mask(std, maxlag=3)
+            scaled[mask] = 0
+            self.data = scaled.T
+            mn = np.mean(self.data)
+            sd = np.std(self.data)
+            logging.debug(f'Data mean is {mn} and std dev is {sd}')
+            del scaled, mean, std
             logging.debug('padding data as nstop > nspectra')
             padend = int(nsamp - self.data.shape[0])
             logging.debug(f'Generating {padend} samples to append at the end')
-            temp_array = np.random.random((padend,self.nchans))
+            temp_array = np.random.random((padend,self.nchans)).astype(np.float32)
             scaled, mean, std = mtcore.normalise(temp_array.T)
             temp_array = scaled.T
             del scaled, mean, std

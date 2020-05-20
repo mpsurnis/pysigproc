@@ -248,14 +248,15 @@ class Candidate(SigprocFile):
             samp_req = nsamp + nstart
             logging.debug(f'Requested {samp_req} samps and got {self.data.shape[0]} samps')
             padend = int(samp_req - self.data.shape[0])
-            logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
-            temp_array = np.random.random((padend,self.nchans)).astype(np.float32)
-            scaled, mean, std = mtcore.normalise(temp_array.T)
-            temp_array = scaled.T
-            del scaled, mean, std
-            self.data = np.append(self.data,temp_array,axis=0)
-            logging.debug(f'Array now has {self.data.shape[0]} samples')
-            del temp_array 
+            if padend > 0:
+               logging.debug(f'Appending {padend} samples at the end to offset for lack of samples in the file')
+               temp_array = np.random.random((padend,self.nchans)).astype(np.float32)
+               scaled, mean, std = mtcore.normalise(temp_array.T)
+               temp_array = scaled.T
+               del scaled, mean, std
+               self.data = np.append(self.data,temp_array,axis=0)
+               logging.debug(f'Array now has {self.data.shape[0]} samples')
+               del temp_array 
             logging.debug('padding data as nstart < 0')
             padbeg = int(nsamp - self.data.shape[0])
             logging.debug(f'Generating {padbeg} samples to append at the start')

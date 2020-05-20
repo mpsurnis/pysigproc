@@ -16,7 +16,7 @@ def gpu_dedisperse(cand, device=0):
     cand_data_in = cuda.to_device(np.array(cand.data.T, dtype=np.uint8))
     cand_data_out = cuda.to_device(np.zeros_like(cand.data.T, dtype=np.uint8))
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dedisp(cand_data_in, chan_freqs, dm, cand_data_out, tsamp):
         ii, jj = cuda.grid(2)
         if ii < cand_data_in.shape[0] and jj < cand_data_in.shape[1]:
@@ -52,7 +52,7 @@ def gpu_dmt(cand, device=0):
     dmt_return = cuda.to_device(np.zeros((256, cand.data.shape[0]), dtype=np.float32))
     cand_data_in = cuda.to_device(np.array(cand.data.T, dtype=np.uint8))
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dmt(cand_data_in, chan_freqs, dms, cand_data_out, tsamp):
         ii, jj, kk = cuda.grid(3)
         if ii < cand_data_in.shape[0] and jj < cand_data_in.shape[1] and kk < dms.shape[0]:
@@ -101,7 +101,7 @@ def gpu_dedisp_and_dmt(cand, device=0):
     # cand_data_out = cuda.to_device(np.zeros_like(cand.data.T, dtype=np.uint8))
     dm_list = cuda.to_device(np.linspace(0, 2 * cand.dm, 256, dtype=np.float32), stream=stream)
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dedisp(cand_data_in, chan_freqs, dm, cand_data_out, tsamp, time_decimation_factor):
         ii, jj = cuda.grid(2)
         if ii < cand_data_in.shape[0] and jj < cand_data_in.shape[1]:
@@ -120,7 +120,7 @@ def gpu_dedisp_and_dmt(cand, device=0):
 
     cand.dedispersed = cand_data_out.copy_to_host(stream=stream).T
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dmt(cand_data_in, chan_freqs, dms, cand_data_out, tsamp, time_decimation_factor):
         ii, jj, kk = cuda.grid(3)
         if ii < cand_data_in.shape[0] and jj < cand_data_in.shape[1] and kk < dms.shape[0]:
@@ -174,13 +174,13 @@ def gpu_dedisp_and_dmt_crop(cand, device=0):
     dmt_return = cuda.device_array(shape=(256,256), dtype=np.float32, stream=stream)
     dm_list = cuda.to_device(np.linspace(0, 2 * cand.dm, 256, dtype=np.float32), stream=stream)
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def crop_time(data_in, data_out, side_stride):
         ii, jj = cuda.grid(2)
         if ii < data_out.shape[0] and jj < data_out.shape[1]:
             data_out[ii, jj] = data_in[ii, jj + side_stride]
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dedisp(cand_data_in, chan_freqs, dm, cand_data_out, tsamp, time_decimation_factor,
                    frequency_decimation_factor):
         ii, jj = cuda.grid(2)
@@ -215,7 +215,7 @@ def gpu_dedisp_and_dmt_crop(cand, device=0):
 
     all_delays = cuda.to_device(disp_time, stream=stream)
 
-    @cuda.jit
+    @cuda.jit(max_registers=32)
     def gpu_dmt(cand_data_in, all_delays, dms, cand_data_out, time_decimation_factor):
         ii, jj, kk = cuda.grid(3)
         if ii < cand_data_in.shape[0] and jj < cand_data_in.shape[1] and kk < dms.shape[0]:
